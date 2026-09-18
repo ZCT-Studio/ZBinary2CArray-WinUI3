@@ -130,6 +130,7 @@ jobs:
       - name: Collect APPX files
         shell: bash
         run: |
+          set +e
           mkdir -p release
           for dir in artifacts/*/; do
             dirname=$(basename "$dir")
@@ -137,13 +138,19 @@ jobs:
             appx=$(find "$dir" -name '*.appx' -type f | head -1)
             if [ -n "$appx" ] && [ -n "$arch" ]; then
               cp "$appx" "release/ZBinary2CArray-WinUI3_${arch}.appx"
-              echo "Added: ZBinary2CArray-WinUI3_${arch}.appx ($(du -h "$appx" | cut -f1))"
+              echo "Added: ZBinary2CArray-WinUI3_${arch}.appx"
             else
-              echo "WARNING: no appx found in $dir (arch=$arch)"
+              echo "WARNING: no appx found in $dir (arch=$arch, dirname=$dirname)"
             fi
           done
           echo "--- Final release files ---"
           ls -la release/
+          # Fail if no appx files collected
+          count=$(find release -name '*.appx' | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "##error:No APPX files collected!"
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
