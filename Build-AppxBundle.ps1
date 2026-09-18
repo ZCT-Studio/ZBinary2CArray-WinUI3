@@ -126,7 +126,8 @@ Write-Host "MSBuild: $script:MSBuild" -ForegroundColor DarkGray
 if (-not $SkipRestore) {
     Write-Host ""
     Write-Host "Restoring NuGet packages..." -ForegroundColor Yellow
-    nuget restore $ProjectFile -NonInteractive 2>$null
+    $packagesDir = Join-Path $ProjectRoot 'packages'
+    nuget restore $ProjectFile -NonInteractive -PackagesDirectory $packagesDir 2>$null
     if ($LASTEXITCODE -ne 0) {
         # Try msbuild restore as fallback
         & $script:MSBuild $ProjectFile /t:Restore /v:minimal /nologo
