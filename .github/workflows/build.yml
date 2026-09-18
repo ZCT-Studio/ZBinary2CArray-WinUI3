@@ -64,22 +64,22 @@ jobs:
       - name: Stage output
         shell: pwsh
         run: |
-          $platform = '${{ steps.platform.outputs.platform }}'
-          # Self-contained build output is at: $platform\Release\ZBinary2CArray-WinUI3\
-          $buildBinDir = ".\$platform\${{ env.CONFIGURATION }}\ZBinary2CArray-WinUI3"
+          # Output path varies by platform:
+          # x64:  x64\Release\ZBinary2CArray-WinUI3\
+          # ARM64: ARM64\Release\ZBinary2CArray-WinUI3\
+          # Win32: Release\ZBinary2CArray-WinUI3\  (no platform prefix!)
+          $exePath = Get-ChildItem '.' -Filter 'ZBinary2CArray_WinUI3.exe' -Recurse |
+            Where-Object { $_.FullName -match 'Release' -and $_.Directory.Name -eq 'ZBinary2CArray-WinUI3' } |
+            Select-Object -First 1 -ExpandProperty FullName
 
-          Write-Host "=== Build output: $buildBinDir ==="
-          if (-not (Test-Path $buildBinDir)) {
-            Write-Host "  Directory does not exist!"
-            # Try listing parent dirs for debugging
-            foreach ($d in @(".\$platform", ".", ".\$platform\${{ env.CONFIGURATION }}")) {
-              if (Test-Path $d) {
-                Write-Host "  Contents of $d :"
-                Get-ChildItem $d | ForEach-Object { Write-Host "    $($_.Name)" }
-              }
-            }
+          if (-not $exePath) {
+            Write-Host "##error:Could not find ZBinary2CArray_WinUI3.exe"
+            Get-ChildItem '.' -Directory | ForEach-Object { Write-Host "  DIR: $($_.Name)" }
             exit 1
           }
+
+          $buildBinDir = Split-Path $exePath
+          Write-Host "=== Build output: $buildBinDir ==="
 
           # Create staging: staging\ZBinary2CArray-WinUI3\
           $staging = '.\staging'

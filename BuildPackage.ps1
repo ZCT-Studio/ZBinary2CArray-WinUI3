@@ -65,12 +65,17 @@ foreach ($arch in $archs) {
         throw "Build failed for $arch"
     }
 
-    # Self-contained output is at: $platform\Release\ZBinary2CArray-WinUI3\
-    $buildBinDir = Join-Path $projectRoot "$platform\$configuration\ZBinary2CArray-WinUI3"
-    if (-not (Test-Path $buildBinDir)) {
-        throw "Build output not found: $buildBinDir"
+    # Self-contained output: varies by platform — search for the exe
+    # x64:  x64\Release\ZBinary2CArray-WinUI3\ZBinary2CArray_WinUI3.exe
+    # ARM64: ARM64\Release\ZBinary2CArray-WinUI3\ZBinary2CArray_WinUI3.exe
+    # Win32: Release\ZBinary2CArray-WinUI3\ZBinary2CArray_WinUI3.exe  (no platform prefix!)
+    $exePath = Get-ChildItem $projectRoot -Filter 'ZBinary2CArray_WinUI3.exe' -Recurse |
+        Where-Object { $_.FullName -match [regex]::Escape($configuration) -and $_.Directory.Name -eq 'ZBinary2CArray-WinUI3' } |
+        Select-Object -First 1 -ExpandProperty FullName
+    if (-not $exePath) {
+        throw "Could not find ZBinary2CArray_WinUI3.exe after build"
     }
-
+    $buildBinDir = Split-Path $exePath
     Write-Host "Build output: $buildBinDir"
 
     # --- Staging directory (folder name inside ZIP = ZBinary2CArray-WinUI3) ---
