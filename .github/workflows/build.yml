@@ -55,7 +55,7 @@ jobs:
         run: |
           $platform = '${{ steps.platform.outputs.platform }}'
           Write-Host "Building for platform: $platform"
-          & msbuild ${{ env.PROJECT_FILE }} /t:Build /p:Configuration=${{ env.CONFIGURATION }} /p:Platform=$platform /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true /p:UapAppxPackageBuildMode=SideloadOnly /v:minimal /nologo
+          & msbuild ${{ env.PROJECT_FILE }} /t:Build /p:Configuration=${{ env.CONFIGURATION }} /p:Platform=$platform /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true /p:UapAppxPackageBuildMode=SideloadOnly /p:WindowsAppSDKSelfContained=true /p:UseVCLibStl=false /v:minimal /nologo
           if ($LASTEXITCODE -ne 0) {
             Write-Host "##error:Build failed for $platform"
             exit 1
@@ -66,42 +66,29 @@ jobs:
         shell: pwsh
         run: |
           $platform = '${{ steps.platform.outputs.platform }}'
-          $arch = '${{ matrix.arch }}'
-
-          # List build output directory tree for debugging
           $searchBase = ".\$platform\${{ env.CONFIGURATION }}"
-          Write-Host "=== Build output: $searchBase ==="
+
+          Write-Host "=== Listing $searchBase (top 200 entries) ==="
           if (Test-Path $searchBase) {
             Get-ChildItem -Path $searchBase -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 200 |
               ForEach-Object { Write-Host "  $($_.FullName)" }
           } else {
             Write-Host "  Directory does not exist!"
-            # Try alternate locations
-            foreach ($alt in @(".\bin\$platform", ".\$platform\Release\AppxPackages", ".\$platform\Release\${{ env.PROJECT_FILE }}".Replace('.vcxproj',''))) {
-              if (Test-Path $alt) {
-                Write-Host "  ALT: $alt"
-                Get-ChildItem -Path $alt -Recurse -ErrorAction SilentlyContinue |
-                  ForEach-Object { Write-Host "    $($_.FullName)" }
-              }
-            }
           }
 
-          # Search broadly for .appx files, excluding packages/ dir
-          Write-Host "=== Searching entire tree for .appx (excluding packages/) ==="
-          $allAppx = Get-ChildItem -Path "." -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -notmatch '\\packages\\' }
+          # ONLY search in the platform-specific output directory — NO fallback
+          Write-Host "=== Searching for .appx in: $searchBase ==="
+          $allAppx = Get-ChildItem -Path $searchBase -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue
           if ($allAppx) {
             Write-Host "Found $($allAppx.Count) .appx file(s):"
-            foreach ($f in $allAppx) {
-              Write-Host "  $($f.FullName)"
-            }
-            # Prefer one in the platform-specific directory
-            $appx = $allAppx | Where-Object { $_.FullName -match "\\$platform\\" } | Select-Object -First 1
-            if (-not $appx) { $appx = $allAppx | Select-Object -First 1 }
+            foreach ($f in $allAppx) { Write-Host "  $($f.FullName)" }
+            $appx = $allAppx | Select-Object -First 1
             echo "appx_path=$($appx.FullName)" >> $env:GITHUB_OUTPUT
             Write-Host "Selected: $($appx.FullName)"
           } else {
-            Write-Host "##error:No .appx file found anywhere (excluding packages/)"
+            Write-Host "##error:No .appx found in $searchBase — build may have failed to generate APPX"
+            exit 1
           }
 
       - name: Upload build artifact
