@@ -61,38 +61,50 @@ jobs:
             exit 1
           }
 
-      - name: Find APPX (debug)
+      - name: Find APPX
         id: find_appx
         shell: pwsh
         run: |
           $platform = '${{ steps.platform.outputs.platform }}'
           $arch = '${{ matrix.arch }}'
-          $searchBase = ".\$platform\${{ env.CONFIGURATION }}"
 
-          Write-Host "=== Searching for .appx in: $searchBase ==="
-          $allAppx = Get-ChildItem -Path $searchBase -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue
+          # List build output directory tree for debugging
+          $searchBase = ".\$platform\${{ env.CONFIGURATION }}"
+          Write-Host "=== Build output: $searchBase ==="
+          if (Test-Path $searchBase) {
+            Get-ChildItem -Path $searchBase -Recurse -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "  $($_.FullName)" }
+          } else {
+            Write-Host "  Directory does not exist!"
+            # Try alternate locations
+            foreach ($alt in @(".\bin\$platform", ".\$platform\Release\AppxPackages", ".\$platform\Release\${{ env.PROJECT_FILE }}".Replace('.vcxproj',''))) {
+              if (Test-Path $alt) {
+                Write-Host "  ALT: $alt"
+                Get-ChildItem -Path $alt -Recurse -ErrorAction SilentlyContinue |
+                  ForEach-Object { Write-Host "    $($_.FullName)" }
+              }
+            }
+          }
+
+          # Search broadly for .appx files, excluding packages/ dir
+          Write-Host "=== Searching entire tree for .appx (excluding packages/) ==="
+          $allAppx = Get-ChildItem -Path "." -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '\\packages\\' }
           if ($allAppx) {
             Write-Host "Found $($allAppx.Count) .appx file(s):"
             foreach ($f in $allAppx) {
               Write-Host "  $($f.FullName)"
             }
-            $appx = $allAppx | Select-Object -First 1
+            # Prefer one in the platform-specific directory
+            $appx = $allAppx | Where-Object { $_.FullName -match "\\$platform\\" } | Select-Object -First 1
+            if (-not $appx) { $appx = $allAppx | Select-Object -First 1 }
             echo "appx_path=$($appx.FullName)" >> $env:GITHUB_OUTPUT
             Write-Host "Selected: $($appx.FullName)"
           } else {
-            Write-Host "##warning:No .appx found in $searchBase"
-            # List the directory structure for debugging
-            Write-Host "=== Directory listing of $searchBase ==="
-            if (Test-Path $searchBase) {
-              Get-ChildItem -Path $searchBase -Recurse -Directory | ForEach-Object { Write-Host "  DIR: $($_.FullName)" }
-              Get-ChildItem -Path $searchBase -Recurse -File -Include '*.appx','*.msix','*.exe' -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  FILE: $($_.FullName)" }
-            } else {
-              Write-Host "  Directory does not exist!"
-            }
+            Write-Host "##error:No .appx file found anywhere (excluding packages/)"
           }
 
       - name: Upload build artifact
-        if: steps.find_appx.outputs.appx_path != ''
         uses: actions/upload-artifact@v4
         with:
           name: ZBinary2CArray-WinUI3-${{ matrix.arch }}
@@ -131,10 +143,13 @@ jobs:
         shell: bash
         run: |
           set +e
+          shopt -s nullglob
           mkdir -p release
+          echo "=== Artifacts directory ==="
+          ls -laR artifacts/ || echo "artifacts/ is empty or missing"
           for dir in artifacts/*/; do
             dirname=$(basename "$dir")
-            arch=$(echo "$dirname" | grep -oP '(x86|x64|ARM64)')
+            arch=$(echo "$dirname" | grep -oP '(x86|x64|ARM64)' || true)
             appx=$(find "$dir" -name '*.appx' -type f | head -1)
             if [ -n "$appx" ] && [ -n "$arch" ]; then
               cp "$appx" "release/ZBinary2CArray-WinUI3_${arch}.appx"
@@ -145,7 +160,6 @@ jobs:
           done
           echo "--- Final release files ---"
           ls -la release/
-          # Fail if no appx files collected
           count=$(find release -name '*.appx' | wc -l)
           if [ "$count" -eq 0 ]; then
             echo "##error:No APPX files collected!"
