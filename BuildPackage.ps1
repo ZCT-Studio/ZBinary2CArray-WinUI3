@@ -39,7 +39,11 @@ if (-not $SkipRestore) {
 }
 
 # --- Determine architectures to build ---
-$archs = if ($Arch -eq 'all') { @('x86', 'x64', 'ARM64') } else @($Arch)
+if ($Arch -eq 'all') {
+    $archs = @('x86', 'x64', 'ARM64')
+} else {
+    $archs = @($Arch)
+}
 
 # --- Create output directory ---
 if (Test-Path $outputDir) {
@@ -47,100 +51,72 @@ if (Test-Path $outputDir) {
 }
 New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
-# --- VC++ Redist DLLs to bundle ---
-$vcRuntimeDlls = @('vcruntime140.dll', 'msvcp140.dll', 'vcruntime140_1.dll', 'concrt140.dll')
-
 foreach ($arch in $archs) {
     $platform = if ($arch -eq 'x86') { 'Win32' } else { $arch }
     Write-Host "`n=== Building $arch (platform=$platform) ===" -ForegroundColor Cyan
 
-    # Build unpackaged (no APPX), self-contained, bootstrap auto-init
+    # Build self-contained, unpackaged (portable)
     & $msbuild $projectFile `
         /t:Build `
         /p:Configuration=$configuration `
         /p:Platform=$platform `
-        /p:AppxPackage=false `
-        /p:WindowsAppSdkBootstrapInitialize=true `
-        /p:WindowsAppSDKSelfContained=true `
-        /p:UseVCLibStl=false `
         /v:minimal /nologo
     if ($LASTEXITCODE -ne 0) {
         throw "Build failed for $arch"
     }
 
-    $buildOutput = Join-Path $projectRoot "$platform\$configuration"
-    if (-not (Test-Path $buildOutput)) {
-        throw "Build output not found: $buildOutput"
+    # Self-contained output is at: $platform\Release\ZBinary2CArray-WinUI3\
+    $buildBinDir = Join-Path $projectRoot "$platform\$configuration\ZBinary2CArray-WinUI3"
+    if (-not (Test-Path $buildBinDir)) {
+        throw "Build output not found: $buildBinDir"
     }
 
-    # --- Staging directory ---
-    $stagingDir = Join-Path $outputDir "staging\$arch\ZBinary2CArray-WinUI3"
-    if (Test-Path $stagingDir) { Remove-Item $stagingDir -Recurse -Force }
+    Write-Host "Build output: $buildBinDir"
+
+    # --- Staging directory (folder name inside ZIP = ZBinary2CArray-WinUI3) ---
+    $stagingRoot = Join-Path $outputDir "staging_$arch"
+    $stagingDir = Join-Path $stagingRoot 'ZBinary2CArray-WinUI3'
+    if (Test-Path $stagingRoot) { Remove-Item $stagingRoot -Recurse -Force }
     New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
 
-    # --- Copy EXE and DLLs from build output ---
-    Write-Host "Copying build output from $buildOutput"
-    Get-ChildItem $buildOutput -File | Where-Object {
-        $_.Extension -in '.exe', '.dll', '.json', '.winmd'
-    } | ForEach-Object {
+    # --- Copy all files from self-contained build output (top level only, skip AppX subfolder) ---
+    Get-ChildItem $buildBinDir -File | ForEach-Object {
         Copy-Item $_.FullName -Destination $stagingDir
     }
 
-    # --- Copy Locales folder ---
-    $localesSrc = Join-Path $buildOutput 'Locales'
-    if (-not (Test-Path $localesSrc)) {
+    # Copy subdirectories (Locales, Assets, etc.) but NOT AppX (it's a duplicate)
+    Get-ChildItem $buildBinDir -Directory | Where-Object { $_.Name -ne 'AppX' } | ForEach-Object {
+        Copy-Item $_.FullName -Destination $stagingDir -Recurse
+    }
+
+    # --- Ensure Locales are present (may be in build output or project root) ---
+    $localesDest = Join-Path $stagingDir 'Locales'
+    if (-not (Test-Path $localesDest)) {
         $localesSrc = Join-Path $projectRoot 'Locales'
-    }
-    if (Test-Path $localesSrc) {
-        Copy-Item $localesSrc -Destination $stagingDir -Recurse
-    }
-
-    # --- Copy Assets folder ---
-    $assetsSrc = Join-Path $projectRoot 'Assets'
-    if (Test-Path $assetsSrc) {
-        Copy-Item $assetsSrc -Destination $stagingDir -Recurse
-    }
-
-    # --- Ensure VC++ runtime DLLs are present ---
-    foreach ($dllName in $vcRuntimeDlls) {
-        $destDll = Join-Path $stagingDir $dllName
-        if (-not (Test-Path $destDll)) {
-            # Try VC++ redist directory
-            $redistBase = & $vswhere -latest -find 'VC\Redist\MSVC\*' | Sort-Object -Descending | Select-Object -First 1
-            if ($redistBase) {
-                $redistArch = if ($arch -eq 'ARM64') { 'arm64' } elseif ($arch -eq 'x86') { 'x86' } else { 'x64' }
-                $redistCrt = Join-Path $redistBase "$redistArch\Microsoft.VC143.CRT"
-                $srcDll = Join-Path $redistCrt $dllName
-                if (Test-Path $srcDll) {
-                    Copy-Item $srcDll -Destination $destDll
-                    Write-Host "  Copied $dllName from VC++ redist"
-                }
-            }
+        if (Test-Path $localesSrc) {
+            Copy-Item $localesSrc -Destination $stagingDir -Recurse
         }
     }
 
-    # --- List contents ---
     Write-Host "Staged contents:"
-    Get-ChildItem $stagingDir -Recurse | ForEach-Object {
+    Get-ChildItem $stagingDir -Recurse -File | ForEach-Object {
         $rel = $_.FullName.Substring($stagingDir.Length + 1)
         Write-Host "  $rel"
     }
 
-    # --- Create ZIP (preserve ZBinary2CArray-WinUI3 folder name) ---
+    # --- Create ZIP ---
     $zipPath = Join-Path $outputDir "ZBinary2CArray-WinUI3_$arch.zip"
-    $stagingParent = Split-Path -Parent $stagingDir
-    Push-Location $stagingParent
+    Push-Location $stagingRoot
     try {
         Compress-Archive -Path 'ZBinary2CArray-WinUI3' -DestinationPath $zipPath -Force
     } finally {
         Pop-Location
     }
     Write-Host "Created: $zipPath" -ForegroundColor Green
-}
 
-# --- Cleanup staging ---
-$stagingRoot = Join-Path $outputDir 'staging'
-if (Test-Path $stagingRoot) { Remove-Item $stagingRoot -Recurse -Force }
+    # --- Cleanup staging ---
+    Remove-Item $stagingRoot -Recurse -Force
+}
 
 Write-Host "`n=== Done! ===" -ForegroundColor Green
 Get-ChildItem $outputDir -Filter '*.zip' | ForEach-Object {

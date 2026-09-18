@@ -55,10 +55,6 @@ jobs:
             /t:Build `
             /p:Configuration=${{ env.CONFIGURATION }} `
             /p:Platform=$platform `
-            /p:AppxPackage=false `
-            /p:WindowsAppSdkBootstrapInitialize=true `
-            /p:WindowsAppSDKSelfContained=true `
-            /p:UseVCLibStl=false `
             /v:minimal /nologo
           if ($LASTEXITCODE -ne 0) {
             Write-Host "##error:Build failed for $platform"
@@ -69,85 +65,57 @@ jobs:
         shell: pwsh
         run: |
           $platform = '${{ steps.platform.outputs.platform }}'
-          $buildOutput = ".\$platform\${{ env.CONFIGURATION }}"
-          $staging = ".\staging\ZBinary2CArray-WinUI3"
+          # Self-contained build output is at: $platform\Release\ZBinary2CArray-WinUI3\
+          $buildBinDir = ".\$platform\${{ env.CONFIGURATION }}\ZBinary2CArray-WinUI3"
 
-          Write-Host "=== Build output: $buildOutput ==="
-          if (Test-Path $buildOutput) {
-            Get-ChildItem $buildOutput -File | Select-Object -First 50 |
-              ForEach-Object { Write-Host "  $($_.Name)" }
-          } else {
+          Write-Host "=== Build output: $buildBinDir ==="
+          if (-not (Test-Path $buildBinDir)) {
             Write-Host "  Directory does not exist!"
+            # Try listing parent dirs for debugging
+            foreach ($d in @(".\$platform", ".", ".\$platform\${{ env.CONFIGURATION }}")) {
+              if (Test-Path $d) {
+                Write-Host "  Contents of $d :"
+                Get-ChildItem $d | ForEach-Object { Write-Host "    $($_.Name)" }
+              }
+            }
             exit 1
           }
 
-          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          # Create staging: staging\ZBinary2CArray-WinUI3\
+          $staging = '.\staging'
+          if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
+          New-Item -ItemType Directory -Path (Join-Path $staging 'ZBinary2CArray-WinUI3') -Force | Out-Null
 
-          # Copy EXE, DLLs, and other runtime files
-          Get-ChildItem $buildOutput -File | Where-Object {
-            $_.Extension -in '.exe', '.dll', '.json', '.winmd'
-          } | ForEach-Object {
-            Copy-Item $_.FullName -Destination $staging
+          $dest = Join-Path $staging 'ZBinary2CArray-WinUI3'
+
+          # Copy all top-level files (exe, dll, json, winmd)
+          Get-ChildItem $buildBinDir -File | ForEach-Object {
+            Copy-Item $_.FullName -Destination $dest
           }
 
-          # Copy Locales folder
-          $locales = Join-Path $buildOutput 'Locales'
-          if (-not (Test-Path $locales)) { $locales = '.\Locales' }
-          if (Test-Path $locales) {
-            Copy-Item $locales -Destination $staging -Recurse
+          # Copy subdirs except AppX (duplicate)
+          Get-ChildItem $buildBinDir -Directory | Where-Object { $_.Name -ne 'AppX' } | ForEach-Object {
+            Copy-Item $_.FullName -Destination $dest -Recurse
           }
 
-          # Copy Assets folder
-          if (Test-Path '.\Assets') {
-            Copy-Item '.\Assets' -Destination $staging -Recurse
-          }
-
-          # Ensure VC++ runtime DLLs are present
-          $vcDlls = @('vcruntime140.dll', 'msvcp140.dll', 'vcruntime140_1.dll', 'concrt140.dll')
-          foreach ($dll in $vcDlls) {
-            $dest = Join-Path $staging $dll
-            if (-not (Test-Path $dest)) {
-              # Search VC++ redist
-              $vsRoot = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-              $redistDir = Get-ChildItem -Path (Join-Path $vsRoot 'VC\Redist\MSVC') -Directory -ErrorAction SilentlyContinue |
-                Sort-Object Name -Descending | Select-Object -First 1
-              if ($redistDir) {
-                $redistArch = if ('${{ matrix.arch }}' -eq 'ARM64') { 'arm64' }
-                              elseif ('${{ matrix.arch }}' -eq 'x86') { 'x86' }
-                              else { 'x64' }
-                $src = Join-Path $redistDir.FullName "$redistArch\Microsoft.VC143.CRT\$dll"
-                if (Test-Path $src) {
-                  Copy-Item $src -Destination $dest
-                  Write-Host "  Copied $dll from VC++ redist"
-                }
-              }
+          # Ensure Locales exist
+          if (-not (Test-Path (Join-Path $dest 'Locales'))) {
+            if (Test-Path '.\Locales') {
+              Copy-Item '.\Locales' -Destination $dest -Recurse
             }
           }
 
-          Write-Host "=== Staged contents ==="
-          Get-ChildItem $staging -Recurse | ForEach-Object {
-            $rel = $_.FullName.Substring((Resolve-Path $staging).Path.Length + 1)
+          Write-Host "=== Staged contents (top 60) ==="
+          Get-ChildItem $dest -Recurse -File | Select-Object -First 60 | ForEach-Object {
+            $rel = $_.FullName.Substring((Resolve-Path $dest).Path.Length + 1)
             Write-Host "  $rel"
           }
-
-      - name: Create ZIP
-        shell: pwsh
-        run: |
-          $stagingParent = '.\staging'
-          $zipPath = ".\ZBinary2CArray-WinUI3_${{ matrix.arch }}.zip"
-          Push-Location $stagingParent
-          try {
-            Compress-Archive -Path 'ZBinary2CArray-WinUI3' -DestinationPath "..\$(Split-Path -Leaf $zipPath)" -Force
-          } finally {
-            Pop-Location
-          }
-          Write-Host "Created: $zipPath"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ZBinary2CArray-WinUI3-${{ matrix.arch }}
-          path: ./ZBinary2CArray-WinUI3_${{ matrix.arch }}.zip
+          path: ./staging/ZBinary2CArray-WinUI3
           if-no-files-found: error
 
       - name: Upload build logs on failure
@@ -169,41 +137,51 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: false
 
-      - name: Collect ZIP files
+      - name: Package release ZIPs
         shell: bash
         run: |
-          set +e
-          shopt -s nullglob
+          set -euo pipefail
           mkdir -p release
-          echo "=== Artifacts directory ==="
-          ls -laR artifacts/ || echo "artifacts/ is empty or missing"
+
           for dir in artifacts/*/; do
             dirname=$(basename "$dir")
-            arch=$(echo "$dirname" | grep -oP '(x86|x64|ARM64)' || true)
-            zip=$(find "$dir" -name '*.zip' -type f | head -1)
-            if [ -n "$zip" ] && [ -n "$arch" ]; then
-              cp "$zip" "release/ZBinary2CArray-WinUI3_${arch}.zip"
-              echo "Added: ZBinary2CArray-WinUI3_${arch}.zip"
+            arch=$(echo "$dirname" | grep -oP '(x86|x64|ARM64)') || continue
+            zipname="ZBinary2CArray-WinUI3_${arch}.zip"
+
+            # download-artifact v4 extracts the artifact contents directly
+            # so $dir contains the ZBinary2CArray-WinUI3 folder structure
+            # We need to wrap it so the ZIP contains ZBinary2CArray-WinUI3/ folder
+
+            tmpdir=$(mktemp -d)
+            # The artifact may already be the folder contents, or it may have one extra level
+            # Check what's inside
+            inner_count=$(find "$dir" -maxdepth 1 | wc -l)
+            if [ "$inner_count" -eq 2 ] && [ -d "${dir}ZBinary2CArray-WinUI3" ]; then
+              # Already has the right folder name
+              mv "${dir}ZBinary2CArray-WinUI3" "$tmpdir/"
             else
-              echo "WARNING: no zip found in $dir (arch=$arch, dirname=$dirname)"
+              # Contents are directly in $dir, wrap them
+              mkdir -p "$tmpdir/ZBinary2CArray-WinUI3"
+              cp -r "$dir"* "$tmpdir/ZBinary2CArray-WinUI3/" 2>/dev/null || true
             fi
+
+            # Create the ZIP
+            cd "$tmpdir"
+            zip -r -q "$GITHUB_WORKSPACE/release/$zipname" ZBinary2CArray-WinUI3/
+            cd "$GITHUB_WORKSPACE"
+            rm -rf "$tmpdir"
+
+            echo "Created: $zipname"
           done
+
           echo "--- Final release files ---"
           ls -la release/
-          count=$(find release -name '*.zip' | wc -l)
-          if [ "$count" -eq 0 ]; then
-            echo "##error:No ZIP files collected!"
-            exit 1
-          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
