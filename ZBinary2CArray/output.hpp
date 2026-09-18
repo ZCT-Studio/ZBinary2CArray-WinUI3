@@ -12,6 +12,7 @@
 #include "bin.hpp"
 #include "details.hpp"
 #include <string>
+#include <sstream>
 #include <cstdlib>
 #include <format>
 
@@ -83,8 +84,8 @@ public:
             if (m_cfg.Annotation.File) {
                 oss << fmt::format(
                   "// Original file: \"{}\".\n// Output file: \"{}\".\n",
-                  ZBTCA_Details::path_to_utf8(ZBTCA_Details::fs::absolute(m_bin.GetPath())),
-                  ZBTCA_Details::path_to_utf8(ZBTCA_Details::fs::absolute(path))
+                  ZBTCA_Details::fs::absolute(m_bin.GetPath()).string(),
+                  ZBTCA_Details::fs::absolute(path).string()
                 );
             }
 
@@ -127,10 +128,10 @@ public:
         }();
 
         if (fs::path parentDir = path.parent_path(); !parentDir.empty() && !fs::exists(parentDir)) {
-            ZBTCA_OUTPUT_ASSERT(fs::create_directories(parentDir), "Can't create directory: " + ZBTCA_Details::path_to_utf8(parentDir));
+            ZBTCA_OUTPUT_ASSERT(fs::create_directories(parentDir), "Can't create directory: " + parentDir.string());
         }
         std::ofstream ofs(path);
-        ZBTCA_OUTPUT_ASSERT(ofs.is_open(), "Can't open file for writing: " + ZBTCA_Details::path_to_utf8(path));
+        ZBTCA_OUTPUT_ASSERT(ofs.is_open(), "Can't open file for writing: " + path.string());
 
         ofs << head_string << (m_cfg.HeaderOnly ? inc_guard_start : "");
 
@@ -178,12 +179,12 @@ public:
             ZBTCA_OUTPUT_ASSERT(false, std::string("Exception while writing data: ") + e.what());
         }
 
-        ofs << "}; // " << filename << "_end [" << elements << " elements]" << (m_cfg.HeaderOnly ? inc_guard_end : "");
+        ofs << "\n}; // " << filename << "_end [" << elements << " elements]" << (m_cfg.HeaderOnly ? inc_guard_end : "");
 
         ofs.close();
 
         if (!m_cfg.HeaderOnly) {
-            fs::path header_path = path.parent_path() / fs::path(ZBTCA_Details::path_to_utf8(path.stem()) + ".h");
+            fs::path header_path = path.parent_path() / fs::path(path.stem().string() + ".h");
 
             const std::string header_head_string = [&]() {
                 std::ostringstream oss;
@@ -206,8 +207,8 @@ public:
                 if (m_cfg.Annotation.File) {
                     oss << fmt::format(
                       "// Original file: \"{}\".\n// Output file: \"{}\".\n",
-                      ZBTCA_Details::path_to_utf8(ZBTCA_Details::fs::absolute(m_bin.GetPath())),
-                      ZBTCA_Details::path_to_utf8(ZBTCA_Details::fs::absolute(header_path))
+                      ZBTCA_Details::fs::absolute(m_bin.GetPath()).string(),
+                      ZBTCA_Details::fs::absolute(header_path).string()
                     );
                 }
 
@@ -217,7 +218,7 @@ public:
             }();
 
             std::ofstream h_ofs(header_path);
-            ZBTCA_OUTPUT_ASSERT(h_ofs.is_open(), "Can't open file for writing: " + ZBTCA_Details::path_to_utf8(header_path));
+            ZBTCA_OUTPUT_ASSERT(h_ofs.is_open(), "Can't open file for writing: " + header_path.string());
 
             h_ofs << header_head_string << inc_guard_start;
 

@@ -7,9 +7,13 @@
 #ifndef ZBINARY2CARRAY_DETAILS_HPP
 #define ZBINARY2CARRAY_DETAILS_HPP
 
+#define ZBINARY2CARRAY_VERSION 10001
+#define ZBINARY2CARRAY_VERSION_NAME "v1.0.1"
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#include <ostream>
 #include <cstdlib>
 #include <array>
 #include <string>
@@ -40,14 +44,6 @@
 
 namespace ZBTCA_Details {
     namespace fs = std::filesystem;
-
-    // Convert a filesystem path to a UTF-8 std::string. On Windows,
-    // path.string() uses the system codepage (e.g. GBK), which corrupts
-    // non-ASCII filenames. This helper uses u8string() to get UTF-8.
-    inline std::string path_to_utf8(fs::path const& p) {
-        auto u8s = p.u8string();
-        return std::string(reinterpret_cast<const char*>(u8s.data()), u8s.size());
-    }
 
     inline std::string ReplaceInvalidChar(const std::string& input) {
         std::string result;
