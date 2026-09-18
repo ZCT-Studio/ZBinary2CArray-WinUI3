@@ -123,16 +123,23 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          find artifacts -name '*.appx' -exec cp {} release/ \;
-          # Rename to include arch
-          cd release
-          for f in *.appx; do
-            arch=$(echo "$f" | grep -oP '(x86|x64|ARM64)')
-            if [ -n "$arch" ]; then
-              mv "$f" "ZBinary2CArray-WinUI3_${arch}.appx"
+          # Each artifact is downloaded into its own subdirectory named
+          # ZBinary2CArray-WinUI3-<arch>. Walk each subdir, extract the
+          # arch from the directory name, and copy the .appx with a
+          # unique name so files don't overwrite each other.
+          for dir in artifacts/*/; do
+            dirname=$(basename "$dir")
+            arch=$(echo "$dirname" | grep -oP '(x86|x64|ARM64)')
+            appx=$(find "$dir" -name '*.appx' -type f | head -1)
+            if [ -n "$appx" ] && [ -n "$arch" ]; then
+              cp "$appx" "release/ZBinary2CArray-WinUI3_${arch}.appx"
+              echo "Added: ZBinary2CArray-WinUI3_${arch}.appx"
+            else
+              echo "WARNING: no appx found in $dir (arch=$arch)"
             fi
           done
-          ls -la
+          echo "--- Final release files ---"
+          ls -la release/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
