@@ -5,7 +5,7 @@ x64/
 x86/
 ARM64/
 Win32/
-AppxBundle/
+Package/
 
 # Visual Studio
 .vs/

@@ -42,11 +42,7 @@ jobs:
         shell: pwsh
         run: |
           $arch = '${{ matrix.arch }}'
-          if ($arch -eq 'x86') {
-            $platform = 'Win32'
-          } else {
-            $platform = $arch
-          }
+          $platform = if ($arch -eq 'x86') { 'Win32' } else { $arch }
           Write-Host "Arch=$arch, Platform=$platform"
           echo "platform=$platform" >> $env:GITHUB_OUTPUT
 
@@ -55,47 +51,103 @@ jobs:
         run: |
           $platform = '${{ steps.platform.outputs.platform }}'
           Write-Host "Building for platform: $platform"
-          & msbuild ${{ env.PROJECT_FILE }} /t:Build /p:Configuration=${{ env.CONFIGURATION }} /p:Platform=$platform /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true /p:UapAppxPackageBuildMode=SideloadOnly /p:WindowsAppSDKSelfContained=true /p:UseVCLibStl=false /v:minimal /nologo
+          & msbuild ${{ env.PROJECT_FILE }} `
+            /t:Build `
+            /p:Configuration=${{ env.CONFIGURATION }} `
+            /p:Platform=$platform `
+            /p:AppxPackage=false `
+            /p:WindowsAppSdkBootstrapInitialize=true `
+            /p:WindowsAppSDKSelfContained=true `
+            /p:UseVCLibStl=false `
+            /v:minimal /nologo
           if ($LASTEXITCODE -ne 0) {
             Write-Host "##error:Build failed for $platform"
             exit 1
           }
 
-      - name: Find APPX
-        id: find_appx
+      - name: Stage output
         shell: pwsh
         run: |
           $platform = '${{ steps.platform.outputs.platform }}'
-          $searchBase = ".\$platform\${{ env.CONFIGURATION }}"
+          $buildOutput = ".\$platform\${{ env.CONFIGURATION }}"
+          $staging = ".\staging\ZBinary2CArray-WinUI3"
 
-          Write-Host "=== Listing $searchBase (top 200 entries) ==="
-          if (Test-Path $searchBase) {
-            Get-ChildItem -Path $searchBase -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 200 |
-              ForEach-Object { Write-Host "  $($_.FullName)" }
+          Write-Host "=== Build output: $buildOutput ==="
+          if (Test-Path $buildOutput) {
+            Get-ChildItem $buildOutput -File | Select-Object -First 50 |
+              ForEach-Object { Write-Host "  $($_.Name)" }
           } else {
             Write-Host "  Directory does not exist!"
-          }
-
-          # ONLY search in the platform-specific output directory — NO fallback
-          Write-Host "=== Searching for .appx in: $searchBase ==="
-          $allAppx = Get-ChildItem -Path $searchBase -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue
-          if ($allAppx) {
-            Write-Host "Found $($allAppx.Count) .appx file(s):"
-            foreach ($f in $allAppx) { Write-Host "  $($f.FullName)" }
-            $appx = $allAppx | Select-Object -First 1
-            echo "appx_path=$($appx.FullName)" >> $env:GITHUB_OUTPUT
-            Write-Host "Selected: $($appx.FullName)"
-          } else {
-            Write-Host "##error:No .appx found in $searchBase — build may have failed to generate APPX"
             exit 1
           }
+
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+
+          # Copy EXE, DLLs, and other runtime files
+          Get-ChildItem $buildOutput -File | Where-Object {
+            $_.Extension -in '.exe', '.dll', '.json', '.winmd'
+          } | ForEach-Object {
+            Copy-Item $_.FullName -Destination $staging
+          }
+
+          # Copy Locales folder
+          $locales = Join-Path $buildOutput 'Locales'
+          if (-not (Test-Path $locales)) { $locales = '.\Locales' }
+          if (Test-Path $locales) {
+            Copy-Item $locales -Destination $staging -Recurse
+          }
+
+          # Copy Assets folder
+          if (Test-Path '.\Assets') {
+            Copy-Item '.\Assets' -Destination $staging -Recurse
+          }
+
+          # Ensure VC++ runtime DLLs are present
+          $vcDlls = @('vcruntime140.dll', 'msvcp140.dll', 'vcruntime140_1.dll', 'concrt140.dll')
+          foreach ($dll in $vcDlls) {
+            $dest = Join-Path $staging $dll
+            if (-not (Test-Path $dest)) {
+              # Search VC++ redist
+              $vsRoot = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+              $redistDir = Get-ChildItem -Path (Join-Path $vsRoot 'VC\Redist\MSVC') -Directory -ErrorAction SilentlyContinue |
+                Sort-Object Name -Descending | Select-Object -First 1
+              if ($redistDir) {
+                $redistArch = if ('${{ matrix.arch }}' -eq 'ARM64') { 'arm64' }
+                              elseif ('${{ matrix.arch }}' -eq 'x86') { 'x86' }
+                              else { 'x64' }
+                $src = Join-Path $redistDir.FullName "$redistArch\Microsoft.VC143.CRT\$dll"
+                if (Test-Path $src) {
+                  Copy-Item $src -Destination $dest
+                  Write-Host "  Copied $dll from VC++ redist"
+                }
+              }
+            }
+          }
+
+          Write-Host "=== Staged contents ==="
+          Get-ChildItem $staging -Recurse | ForEach-Object {
+            $rel = $_.FullName.Substring((Resolve-Path $staging).Path.Length + 1)
+            Write-Host "  $rel"
+          }
+
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          $stagingParent = '.\staging'
+          $zipPath = ".\ZBinary2CArray-WinUI3_${{ matrix.arch }}.zip"
+          Push-Location $stagingParent
+          try {
+            Compress-Archive -Path 'ZBinary2CArray-WinUI3' -DestinationPath "..\$(Split-Path -Leaf $zipPath)" -Force
+          } finally {
+            Pop-Location
+          }
+          Write-Host "Created: $zipPath"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ZBinary2CArray-WinUI3-${{ matrix.arch }}
-          path: ${{ steps.find_appx.outputs.appx_path }}
+          path: ./ZBinary2CArray-WinUI3_${{ matrix.arch }}.zip
           if-no-files-found: error
 
       - name: Upload build logs on failure
@@ -126,7 +178,7 @@ jobs:
           path: artifacts
           merge-multiple: false
 
-      - name: Collect APPX files
+      - name: Collect ZIP files
         shell: bash
         run: |
           set +e
@@ -137,19 +189,19 @@ jobs:
           for dir in artifacts/*/; do
             dirname=$(basename "$dir")
             arch=$(echo "$dirname" | grep -oP '(x86|x64|ARM64)' || true)
-            appx=$(find "$dir" -name '*.appx' -type f | head -1)
-            if [ -n "$appx" ] && [ -n "$arch" ]; then
-              cp "$appx" "release/ZBinary2CArray-WinUI3_${arch}.appx"
-              echo "Added: ZBinary2CArray-WinUI3_${arch}.appx"
+            zip=$(find "$dir" -name '*.zip' -type f | head -1)
+            if [ -n "$zip" ] && [ -n "$arch" ]; then
+              cp "$zip" "release/ZBinary2CArray-WinUI3_${arch}.zip"
+              echo "Added: ZBinary2CArray-WinUI3_${arch}.zip"
             else
-              echo "WARNING: no appx found in $dir (arch=$arch, dirname=$dirname)"
+              echo "WARNING: no zip found in $dir (arch=$arch, dirname=$dirname)"
             fi
           done
           echo "--- Final release files ---"
           ls -la release/
-          count=$(find release -name '*.appx' | wc -l)
+          count=$(find release -name '*.zip' | wc -l)
           if [ "$count" -eq 0 ]; then
-            echo "##error:No APPX files collected!"
+            echo "##error:No ZIP files collected!"
             exit 1
           fi
 
@@ -159,6 +211,6 @@ jobs:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: release/*.appx
+          files: release/*.zip
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
