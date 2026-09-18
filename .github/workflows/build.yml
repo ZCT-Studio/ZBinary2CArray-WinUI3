@@ -1,0 +1,145 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+
+  workflow_dispatch:
+
+env:
+  CONFIGURATION: Release
+  PROJECT_FILE: ZBinary2CArray-WinUI3.vcxproj
+
+jobs:
+  build:
+    name: Build (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86, x64, ARM64 ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+        with:
+          nuget-version: 'latest'
+
+      - name: Restore NuGet packages
+        run: nuget restore ${{ env.PROJECT_FILE }} -NonInteractive
+
+      - name: Determine MSBuild Platform
+        id: platform
+        shell: bash
+        run: |
+          arch="${{ matrix.arch }}"
+          if [ "$arch" = "x86" ]; then
+            echo "platform=Win32" >> $GITHUB_OUTPUT
+          else
+            echo "platform=$arch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        run: |
+          msbuild ${{ env.PROJECT_FILE }} `
+            /t:Build `
+            /p:Configuration=${{ env.CONFIGURATION }} `
+            /p:Platform=${{ steps.platform.outputs.platform }} `
+            /p:AppxPackageSigningEnabled=false `
+            /p:GenerateAppxPackageOnBuild=true `
+            /p:AppxBundlePlatforms= `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /v:minimal /nologo
+
+      - name: Find APPX
+        id: find_appx
+        shell: pwsh
+        run: |
+          $platform = '${{ steps.platform.outputs.platform }}'
+          $searchBase = Join-Path "." "$platform\${{ env.CONFIGURATION }}"
+          $appxFiles = Get-ChildItem -Path $searchBase -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($appxFiles) {
+            $appxPath = $appxFiles.FullName
+            echo "appx_path=$appxPath" >> $env:GITHUB_OUTPUT
+            echo "appx_name=ZBinary2CArray-WinUI3_${{ matrix.arch }}.appx" >> $env:GITHUB_OUTPUT
+            Write-Host "Found APPX: $appxPath"
+          } else {
+            Write-Host "No APPX found in $searchBase"
+            # Fallback: search entire project tree
+            $appxFiles = Get-ChildItem -Path "." -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($appxFiles) {
+              echo "appx_path=$($appxFiles.FullName)" >> $env:GITHUB_OUTPUT
+              echo "appx_name=ZBinary2CArray-WinUI3_${{ matrix.arch }}.appx" >> $env:GITHUB_OUTPUT
+              Write-Host "Found APPX (fallback): $($appxFiles.FullName)"
+            }
+          }
+
+      - name: Upload build artifact
+        if: steps.find_appx.outputs.appx_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZBinary2CArray-WinUI3-${{ matrix.arch }}
+          path: ${{ steps.find_appx.outputs.appx_path }}
+          if-no-files-found: warn
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.arch }}
+          path: |
+            ${{ steps.platform.outputs.platform }}/${{ env.CONFIGURATION }}/**/*.log
+            ${{ steps.platform.outputs.platform }}/${{ env.CONFIGURATION }}/**/*.err
+          if-no-files-found: warn
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Collect APPX files
+        shell: bash
+        run: |
+          mkdir -p release
+          find artifacts -name '*.appx' -exec cp {} release/ \;
+          # Rename to include arch
+          cd release
+          for f in *.appx; do
+            arch=$(echo "$f" | grep -oP '(x86|x64|ARM64)')
+            if [ -n "$arch" ]; then
+              mv "$f" "ZBinary2CArray-WinUI3_${arch}.appx"
+            fi
+          done
+          ls -la
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release/*.appx
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

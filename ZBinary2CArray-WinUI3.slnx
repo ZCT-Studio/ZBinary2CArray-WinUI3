@@ -1,0 +1,10 @@
+<Solution>
+  <Configurations>
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="ZBinary2CArray-WinUI3.vcxproj" Id="a9390640-66a6-4930-9571-076d1ad880d4">
+    <Deploy />
+  </Project>
+</Solution>

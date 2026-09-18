@@ -1,0 +1,9 @@
+﻿namespace ZBinary2CArray_WinUI3
+{
+    [default_interface]
+    runtimeclass MainWindow : Microsoft.UI.Xaml.Window
+    {
+        MainWindow();
+        void ApplyTr();
+    }
+}

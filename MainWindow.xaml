@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="ZBinary2CArray_WinUI3.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:ZBinary2CArray_WinUI3"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="ZBinary2CArray">
+
+    <Grid x:Name="RootGrid"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.Resources>
+            <Storyboard x:Name="ResultRevealStoryboard">
+                <DoubleAnimation Storyboard.TargetName="ResultCard"
+                                 Storyboard.TargetProperty="Opacity"
+                                 From="0" To="1" Duration="0:0:0.3" />
+                <DoubleAnimation Storyboard.TargetName="ResultCardTransform"
+                                 Storyboard.TargetProperty="Y"
+                                 From="20" To="0" Duration="0:0:0.3" />
+            </Storyboard>
+        </Grid.Resources>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Padding="16,8,16,0">
+            <StackPanel Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="8"
+                VerticalAlignment="Center">
+
+                <FontIcon Glyph="&#xE774;"
+                  FontSize="16"
+                  VerticalAlignment="Center"/>
+
+                <TextBlock Text="i18n"
+                   VerticalAlignment="Center"
+                   FontSize="14"/>
+
+                <ComboBox x:Name="LanguageCombo"
+                  SelectionChanged="LanguageCombo_SelectionChanged">
+                    <x:String>en-US</x:String>
+                    <x:String>zh-CN</x:String>
+                    <x:String>zh-TW</x:String>
+                </ComboBox>
+
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer x:Name="MainScrollViewer"
+                      Grid.Row="1"
+                      Padding="16,12,16,12"
+                      HorizontalScrollMode="Disabled"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <Grid x:Name="ContentGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="Col1" Width="*" />
+                    <ColumnDefinition x:Name="Col2" Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Grid.Row="0"
+                            x:Name="LeftColumn"
+                            Spacing="12"
+                            MaxWidth="640"
+                            HorizontalAlignment="Stretch">
+
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="InputGroupLabel"
+                                       Text="Input file"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="InputPathBox"
+                                         Grid.Column="0"
+                                         IsReadOnly="True"
+                                         PlaceholderText="No file selected" />
+                                <Button x:Name="BrowseInputButton"
+                                        Grid.Column="1"
+                                        Margin="8,0,0,0"
+                                        Click="BrowseInput_Click"
+                                        Content="Browse..." />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="OutputGroupLabel"
+                                       Text="Output"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="OutputDirLabel"
+                                           Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           Text="Directory:" />
+                                <TextBox x:Name="OutputDirBox"
+                                         Grid.Column="1"
+                                         Margin="8,0,0,0"
+                                         IsReadOnly="True"
+                                         PlaceholderText="No directory selected" />
+                                <Button x:Name="BrowseDirButton"
+                                        Grid.Column="2"
+                                        Margin="8,0,0,0"
+                                        Click="BrowseDir_Click"
+                                        Content="Browse..." />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="FilenameLabel"
+                                           Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           Text="File name:" />
+                                <TextBox x:Name="OutputStemBox"
+                                         Grid.Column="1"
+                                         Margin="8,0,0,0"
+                                         PlaceholderText="output_filename"
+                                         TextChanged="OutputStem_TextChanged" />
+                            </Grid>
+                            <TextBlock x:Name="FilenameInvalidHint"
+                                       Visibility="Collapsed"
+                                       Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                       Text="File name contains invalid characters"
+                                       Style="{StaticResource CaptionTextBlockStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="16">
+                        <StackPanel Spacing="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="ConvertButton"
+                                        Grid.Column="0"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Click="Convert_Click"
+                                        Content="Convert" />
+                                <ProgressRing x:Name="ConvertProgressRing"
+                                              Grid.Column="1"
+                                              Margin="12,0,0,0"
+                                              VerticalAlignment="Center"
+                                              IsActive="False"
+                                              Visibility="Collapsed" />
+                            </Grid>
+                            <TextBlock x:Name="StatusText"
+                                       Visibility="Collapsed"
+                                       Style="{StaticResource CaptionTextBlockStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="ResultCard"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="16"
+                            Visibility="Collapsed"
+                            RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="ResultCardTransform" Y="0" />
+                        </Border.RenderTransform>
+                        <StackPanel Spacing="8">
+                            <InfoBar x:Name="ResultInfoBar"
+                                     IsOpen="True"
+                                     IsClosable="False"
+                                     Severity="Success">
+                                <InfoBar.ActionButton>
+                                    <Button x:Name="OpenExplorerButton"
+                                            Click="OpenExplorer_Click"
+                                            Content="Open in Explorer" />
+                                </InfoBar.ActionButton>
+                            </InfoBar>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Grid.Row="0"
+                            x:Name="RightColumn"
+                            Spacing="12"
+                            MaxWidth="480"
+                            Margin="12,0,0,0">
+
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="16">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="OptionsGroupLabel"
+                                       Text="Options"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="TypeLabel" Text="Element type" />
+                                <RadioButtons x:Name="TypeRadio">
+                                    <RadioButton x:Name="TypeU8"
+                                        Content="unsigned char (u8)"
+                                        IsChecked="True" />
+                                    <RadioButton x:Name="TypeU16" Content="unsigned short (u16)" />
+                                    <RadioButton x:Name="TypeU32" Content="unsigned int (u32)" />
+                                    <RadioButton x:Name="TypeU64" Content="unsigned long long (u64)" />
+                                </RadioButtons>
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="ModeLabel" Text="Output mode" />
+                                <ToggleSwitch x:Name="ModeToggle"
+                                    IsOn="True"
+                                    OnContent="Header only (.hpp)"
+                                    OffContent="Source + header (.cpp + .h)" />
+                            </StackPanel>
+
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ToggleSwitch x:Name="IncGuardToggle"
+                                              IsOn="True"
+                                              OnContent=""
+                                              OffContent=""
+                                              Grid.Column="0"
+                                              Header="Include guard" />
+                                <ToggleSwitch x:Name="TidyToggle"
+                                              IsOn="True"
+                                              OnContent=""
+                                              OffContent=""
+                                              Grid.Column="1"
+                                              Header="Tidy formatting" />
+                            </Grid>
+
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="4">
+                                    <TextBlock x:Name="StorageLabel" Text="Storage specifier" />
+                                    <ComboBox x:Name="StorageCombo"
+                                              SelectedIndex="0"
+                                              HorizontalAlignment="Stretch">
+                                        <x:String>none</x:String>
+                                        <x:String>static</x:String>
+                                        <x:String>inline</x:String>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock x:Name="ConstLabel" Text="Const specifier" />
+                                    <ComboBox x:Name="ConstCombo"
+                                              SelectedIndex="0"
+                                              HorizontalAlignment="Stretch">
+                                        <x:String>none</x:String>
+                                        <x:String>const</x:String>
+                                        <x:String>constexpr</x:String>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="NumsPerLineLabel"
+                                           Text="Numbers per line (0 = auto)" />
+                                <NumberBox x:Name="NumsPerLineBox"
+                                           Minimum="0"
+                                           Maximum="64"
+                                           Value="0"
+                                           SpinButtonPlacementMode="Compact" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="AnnotGroupLabel"
+                                           Text="Annotations"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <Grid RowSpacing="4" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <CheckBox x:Name="AnnotToolCheck"
+                                              Grid.Row="0" Grid.Column="0"
+                                              Content="Tool name"
+                                              Checked="AnnotTool_Changed"
+                                              Unchecked="AnnotTool_Changed" />
+                                    <CheckBox x:Name="AnnotRunnerCheck"
+                                              Grid.Row="0" Grid.Column="1"
+                                              Content="Runner name"
+                                              Checked="AnnotRunner_Changed"
+                                              Unchecked="AnnotRunner_Changed" />
+                                    <TextBox x:Name="AnnotToolNameBox"
+                                             Grid.Row="1" Grid.Column="0"
+                                             Text="ZBinary2CArray-WinUI3"
+                                             PlaceholderText="default: ZBinary2CArray-WinUI3"
+                                             IsEnabled="True" />
+                                    <TextBox x:Name="AnnotRunnerNameBox"
+                                             Grid.Row="1" Grid.Column="1"
+                                             PlaceholderText="default: current user"
+                                             IsEnabled="True" />
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="720" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="Col1.Width" Value="*" />
+                        <Setter Target="Col2.Width" Value="*" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="Narrow">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="Col1.Width" Value="*" />
+                        <Setter Target="Col2.Width" Value="0" />
+                        <Setter Target="RightColumn.(Grid.Column)" Value="0" />
+                        <Setter Target="RightColumn.(Grid.Row)" Value="1" />
+                        <Setter Target="RightColumn.Margin" Value="0,12,0,0" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+    </Grid>
+</Window>

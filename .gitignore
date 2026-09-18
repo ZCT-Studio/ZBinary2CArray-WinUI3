@@ -1,0 +1,42 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+x64/
+x86/
+ARM64/
+Win32/
+AppxBundle/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Build artifacts
+*.appx
+*.appxbundle
+*.appxupload
+*.msix
+*.msixbundle
+*.pfx
+*.appxsym
+
+# Generated files
+Generated Files/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
