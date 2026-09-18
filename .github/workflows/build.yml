@@ -39,47 +39,55 @@ jobs:
 
       - name: Determine MSBuild Platform
         id: platform
-        shell: bash
+        shell: pwsh
         run: |
-          arch="${{ matrix.arch }}"
-          if [ "$arch" = "x86" ]; then
-            echo "platform=Win32" >> $GITHUB_OUTPUT
-          else
-            echo "platform=$arch" >> $GITHUB_OUTPUT
-          fi
+          $arch = '${{ matrix.arch }}'
+          if ($arch -eq 'x86') {
+            $platform = 'Win32'
+          } else {
+            $platform = $arch
+          }
+          Write-Host "Arch=$arch, Platform=$platform"
+          echo "platform=$platform" >> $env:GITHUB_OUTPUT
 
       - name: Build
+        shell: pwsh
         run: |
-          msbuild ${{ env.PROJECT_FILE }} `
-            /t:Build `
-            /p:Configuration=${{ env.CONFIGURATION }} `
-            /p:Platform=${{ steps.platform.outputs.platform }} `
-            /p:AppxPackageSigningEnabled=false `
-            /p:GenerateAppxPackageOnBuild=true `
-            /p:AppxBundlePlatforms= `
-            /p:UapAppxPackageBuildMode=SideloadOnly `
-            /v:minimal /nologo
+          $platform = '${{ steps.platform.outputs.platform }}'
+          Write-Host "Building for platform: $platform"
+          & msbuild ${{ env.PROJECT_FILE }} /t:Build /p:Configuration=${{ env.CONFIGURATION }} /p:Platform=$platform /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true /p:UapAppxPackageBuildMode=SideloadOnly /v:minimal /nologo
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "##error:Build failed for $platform"
+            exit 1
+          }
 
-      - name: Find APPX
+      - name: Find APPX (debug)
         id: find_appx
         shell: pwsh
         run: |
           $platform = '${{ steps.platform.outputs.platform }}'
-          $searchBase = Join-Path "." "$platform\${{ env.CONFIGURATION }}"
-          $appxFiles = Get-ChildItem -Path $searchBase -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($appxFiles) {
-            $appxPath = $appxFiles.FullName
-            echo "appx_path=$appxPath" >> $env:GITHUB_OUTPUT
-            echo "appx_name=ZBinary2CArray-WinUI3_${{ matrix.arch }}.appx" >> $env:GITHUB_OUTPUT
-            Write-Host "Found APPX: $appxPath"
+          $arch = '${{ matrix.arch }}'
+          $searchBase = ".\$platform\${{ env.CONFIGURATION }}"
+
+          Write-Host "=== Searching for .appx in: $searchBase ==="
+          $allAppx = Get-ChildItem -Path $searchBase -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue
+          if ($allAppx) {
+            Write-Host "Found $($allAppx.Count) .appx file(s):"
+            foreach ($f in $allAppx) {
+              Write-Host "  $($f.FullName)"
+            }
+            $appx = $allAppx | Select-Object -First 1
+            echo "appx_path=$($appx.FullName)" >> $env:GITHUB_OUTPUT
+            Write-Host "Selected: $($appx.FullName)"
           } else {
-            Write-Host "No APPX found in $searchBase"
-            # Fallback: search entire project tree
-            $appxFiles = Get-ChildItem -Path "." -Filter '*.appx' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($appxFiles) {
-              echo "appx_path=$($appxFiles.FullName)" >> $env:GITHUB_OUTPUT
-              echo "appx_name=ZBinary2CArray-WinUI3_${{ matrix.arch }}.appx" >> $env:GITHUB_OUTPUT
-              Write-Host "Found APPX (fallback): $($appxFiles.FullName)"
+            Write-Host "##warning:No .appx found in $searchBase"
+            # List the directory structure for debugging
+            Write-Host "=== Directory listing of $searchBase ==="
+            if (Test-Path $searchBase) {
+              Get-ChildItem -Path $searchBase -Recurse -Directory | ForEach-Object { Write-Host "  DIR: $($_.FullName)" }
+              Get-ChildItem -Path $searchBase -Recurse -File -Include '*.appx','*.msix','*.exe' -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  FILE: $($_.FullName)" }
+            } else {
+              Write-Host "  Directory does not exist!"
             }
           }
 
@@ -89,7 +97,7 @@ jobs:
         with:
           name: ZBinary2CArray-WinUI3-${{ matrix.arch }}
           path: ${{ steps.find_appx.outputs.appx_path }}
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload build logs on failure
         if: failure()
@@ -123,17 +131,13 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          # Each artifact is downloaded into its own subdirectory named
-          # ZBinary2CArray-WinUI3-<arch>. Walk each subdir, extract the
-          # arch from the directory name, and copy the .appx with a
-          # unique name so files don't overwrite each other.
           for dir in artifacts/*/; do
             dirname=$(basename "$dir")
             arch=$(echo "$dirname" | grep -oP '(x86|x64|ARM64)')
             appx=$(find "$dir" -name '*.appx' -type f | head -1)
             if [ -n "$appx" ] && [ -n "$arch" ]; then
               cp "$appx" "release/ZBinary2CArray-WinUI3_${arch}.appx"
-              echo "Added: ZBinary2CArray-WinUI3_${arch}.appx"
+              echo "Added: ZBinary2CArray-WinUI3_${arch}.appx ($(du -h "$appx" | cut -f1))"
             else
               echo "WARNING: no appx found in $dir (arch=$arch)"
             fi
