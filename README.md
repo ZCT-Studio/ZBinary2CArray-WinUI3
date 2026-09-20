@@ -131,6 +131,11 @@ The GitHub Actions workflow (`.github/workflows/build.yml`) automatically builds
 
 When a tag starting with `v` (e.g., `v1.0.0`) is pushed, all three architectures must succeed before a GitHub Release is created with the APPX packages attached.
 
+## Related Projects & Community
+
+- [ZBinary2CArray](https://github.com/ZCT-Studio/ZBinary2CArray) — The core C/C++ binary-to-array conversion library that this application is built upon.
+- [ZCT Studio Telegram Channel](https://t.me/ZCT_Studio) — Follow for project updates and announcements.
+
 ## License
 
 MIT License. See `ZBinary2CArray/LICENSE.TXT` for the core library license.

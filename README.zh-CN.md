@@ -131,6 +131,11 @@ GitHub Actions 工作流（`.github/workflows/build.yml`）在每次推送和 Pu
 
 当推送以 `v` 开头的标签（如 `v1.0.0`）时，三种架构全部构建成功后会自动创建 GitHub Release 并附上 APPX 包。
 
+## 相关项目与社区
+
+- [ZBinary2CArray](https://github.com/ZCT-Studio/ZBinary2CArray) — 本应用所基于的 C/C++ 二进制转数组核心库。
+- [ZCT Studio Telegram 频道](https://t.me/ZCT_Studio) — 关注获取项目最新动态与公告。
+
 ## 许可证
 
 MIT 许可证。核心库许可证详见 `ZBinary2CArray/LICENSE.TXT`。

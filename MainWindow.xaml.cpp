@@ -132,8 +132,6 @@ namespace winrt::ZBinary2CArray_WinUI3::implementation
         ConvertButton().Content(winrt::box_value(gui::to_hstring(tr.tr("convert.button"))));
         OpenExplorerButton().Content(winrt::box_value(gui::to_hstring(tr.tr("result.open_in_explorer"))));
 
-        TelegramLabel().Text(gui::to_hstring(tr.tr("footer.telegram")));
-
         auto lang_combo = LanguageCombo();
         auto& current = m_current_tag;
         for (uint32_t i = 0; i < lang_combo.Items().Size(); ++i)
