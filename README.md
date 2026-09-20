@@ -57,7 +57,7 @@ ZBinary2CArray-WinUI3/
 │   ├── zh-CN.json
 │   └── zh-TW.json
 ├── Assets/                                 # App icons and splash screen
-├── Build-AppxBundle.ps1                   # One-click build script (x86/x64/ARM64)
+├── BuildPackage.ps1                         # Build script
 ├── .github/workflows/build.yml             # CI/CD pipeline
 ├── packages.config                         # NuGet package references
 └── ZBinary2CArray-WinUI3.vcxproj          # MSBuild project file
@@ -77,16 +77,6 @@ ZBinary2CArray-WinUI3/
 ```bat
 msbuild ZBinary2CArray-WinUI3.vcxproj /p:Configuration=Debug /p:Platform=x64
 ```
-
-### One-Click APPX Bundle
-
-To build Release APPX packages for all three architectures (x86, x64, ARM64) and collect them into an `AppxBundle/` folder:
-
-```powershell
-.\Build-AppxBundle.ps1
-```
-
-The output `.appx` files will be placed in `AppxBundle/`.
 
 ## Usage
 

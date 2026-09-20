@@ -57,7 +57,7 @@ ZBinary2CArray-WinUI3/
 │   ├── zh-CN.json
 │   └── zh-TW.json
 ├── Assets/                                 # 应用图标和启动画面
-├── Build-AppxBundle.ps1                   # 一键构建脚本（x86/x64/ARM64）
+├── BuildPackage.ps1                         # 构建脚本
 ├── .github/workflows/build.yml             # CI/CD 流水线
 ├── packages.config                         # NuGet 包引用
 └── ZBinary2CArray-WinUI3.vcxproj          # MSBuild 项目文件
@@ -77,16 +77,6 @@ ZBinary2CArray-WinUI3/
 ```bat
 msbuild ZBinary2CArray-WinUI3.vcxproj /p:Configuration=Debug /p:Platform=x64
 ```
-
-### 一键打包 APPX
-
-构建 Release 版本的 x86、x64、ARM64 APPX 包并收集到 `AppxBundle/` 文件夹：
-
-```powershell
-.\Build-AppxBundle.ps1
-```
-
-生成的 `.appx` 文件将位于 `AppxBundle/` 目录下。
 
 ## 使用方法
 
