@@ -25,6 +25,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Padding="16,8,16,0">
@@ -341,6 +342,31 @@
                 </StackPanel>
             </Grid>
         </ScrollViewer>
+
+        <Border Grid.Row="2"
+                Padding="0,4,0,8"
+                HorizontalAlignment="Center">
+            <Button x:Name="TelegramButton"
+                    Click="Telegram_Click"
+                    Background="Transparent"
+                    Padding="16,8,16,8"
+                    CornerRadius="14"
+                    BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="8">
+                    <FontIcon Glyph="&#xE773;"
+                              FontSize="16"
+                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                              VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TelegramLabel"
+                               Text="Telegram"
+                               FontSize="14"
+                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </Border>
 
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup>

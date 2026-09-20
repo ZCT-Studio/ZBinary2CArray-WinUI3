@@ -50,6 +50,8 @@ namespace winrt::ZBinary2CArray_WinUI3::implementation
                                 winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
         void AnnotRunner_Changed(winrt::Windows::Foundation::IInspectable const&,
                                    winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
+        void Telegram_Click(winrt::Windows::Foundation::IInspectable const&,
+                            winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
 
     private:
         [[nodiscard]] App& app() noexcept;
