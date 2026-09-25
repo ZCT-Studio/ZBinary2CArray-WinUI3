@@ -117,7 +117,7 @@ The settings file stores the selected language and theme preference (always `Sys
 
 ## CI/CD
 
-The GitHub Actions workflow (`.github/workflows/build.yml`) automatically builds the project for x86, x64, and ARM64 on every push and pull request. Build artifacts (APPX packages) are uploaded as downloadable assets.
+The GitHub Actions workflow (`.github/workflows/build.yml`) automatically builds the project for x86, x64, and ARM64 on every push and pull request. Build artifacts (zipped files) are uploaded as downloadable assets.
 
 When a tag starting with `v` (e.g., `v1.0.0`) is pushed, all three architectures must succeed before a GitHub Release is created with the zipped packages attached.
 
