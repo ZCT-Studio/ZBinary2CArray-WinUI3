@@ -117,9 +117,9 @@ msbuild ZBinary2CArray-WinUI3.vcxproj /p:Configuration=Debug /p:Platform=x64
 
 ## CI/CD
 
-GitHub Actions 工作流（`.github/workflows/build.yml`）在每次推送和 Pull Request 时自动构建 x86、x64 和 ARM64 版本。构建产物（APPX 包）会作为可下载资源上传。
+GitHub Actions 工作流（`.github/workflows/build.yml`）在每次推送和 Pull Request 时自动构建 x86、x64 和 ARM64 版本。构建产物（ZIP压缩文件）会作为可下载资源上传。
 
-当推送以 `v` 开头的标签（如 `v1.0.0`）时，三种架构全部构建成功后会自动创建 GitHub Release 并附上 APPX 包。
+当推送以 `v` 开头的标签（如 `v1.0.0`）时，三种架构全部构建成功后会自动创建 GitHub Release 并附上 ZIP压缩文件 包。
 
 ## 相关项目与社区
 
